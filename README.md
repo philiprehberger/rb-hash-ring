@@ -94,4 +94,4 @@ bundle exec rubocop    # Check code style
 
 ## License
 
-MIT
+[MIT](LICENSE)
