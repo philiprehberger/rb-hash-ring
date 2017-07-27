@@ -1,13 +1,20 @@
 # frozen_string_literal: true
 
 require 'digest/md5'
+require 'json'
 
 module Philiprehberger
   module HashRing
     class Ring
       attr_reader :replicas
 
-      def initialize(nodes = [], replicas: 150)
+      def initialize(nodes = [], replicas: 150, hash: nil)
+        if hash
+          raise ArgumentError, 'hash must respond to :call' unless hash.respond_to?(:call)
+
+          @custom_hash = hash
+        end
+
         @replicas = replicas
         @nodes = {}
         @ring = []
@@ -71,6 +78,64 @@ module Philiprehberger
         result
       end
 
+      def migration_plan(other_ring)
+        test_keys = (0...10_000).map { |i| "key_#{i}" }
+        moved = []
+        summary = Hash.new { |h, k| h[k] = { gained: 0, lost: 0 } }
+
+        test_keys.each do |key|
+          from = get(key)
+          to = other_ring.get(key)
+          next if from == to
+
+          moved << { key_sample: key, from: from, to: to }
+          summary[from][:lost] += 1 if from
+          summary[to][:gained] += 1 if to
+        end
+
+        { moved: moved, summary: summary }
+      end
+
+      def to_json(*_args)
+        data = {
+          'nodes' => @nodes.map { |node, weight| { 'name' => node, 'weight' => weight } },
+          'replicas' => @replicas
+        }
+        JSON.generate(data)
+      end
+
+      def self.from_json(data)
+        parsed = JSON.parse(data)
+        ring = new([], replicas: parsed['replicas'])
+        parsed['nodes'].each do |entry|
+          ring.add(entry['name'], weight: entry['weight'])
+        end
+        ring
+      end
+
+      def balance_score
+        return 1.0 if @nodes.empty?
+
+        test_keys = (0...10_000).map { |i| "key_#{i}" }
+        dist = distribution(test_keys)
+        counts = @nodes.keys.map { |node| dist[node] || 0 }
+        ideal = 10_000.0 / @nodes.size
+        mean = counts.sum.to_f / counts.size
+        variance = counts.sum { |c| (c - mean)**2 } / counts.size.to_f
+        std_dev = Math.sqrt(variance)
+        score = 1.0 - (std_dev / ideal)
+        score.clamp(0.0, 1.0)
+      end
+
+      def nodes_for_keys(keys)
+        result = Hash.new { |h, k| h[k] = [] }
+        keys.each do |key|
+          node = get(key)
+          result[node] << key if node
+        end
+        result
+      end
+
       private
 
       def collect_distinct_nodes(start_idx, count)
@@ -97,8 +162,12 @@ module Philiprehberger
       end
 
       def hash_key(key)
-        digest = Digest::MD5.digest(key)
-        (digest[0].ord << 24) | (digest[1].ord << 16) | (digest[2].ord << 8) | digest[3].ord
+        digest_str = if @custom_hash
+                       @custom_hash.call(key)
+                     else
+                       Digest::MD5.hexdigest(key)
+                     end
+        digest_str[0, 8].to_i(16)
       end
 
       def binary_search(pos)

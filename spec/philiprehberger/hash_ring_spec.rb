@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'json'
 
 RSpec.describe Philiprehberger::HashRing::Ring do
   subject(:ring) { described_class.new }
@@ -187,6 +188,295 @@ RSpec.describe Philiprehberger::HashRing::Ring do
       dist = ring.distribution(keys)
 
       expect(dist['heavy']).to be > dist['light']
+    end
+  end
+
+  describe 'custom hash function' do
+    it 'accepts a custom hash function via hash: parameter' do
+      custom_hash = ->(key) { Digest::SHA256.hexdigest(key) }
+      ring = described_class.new(%w[node-a node-b], hash: custom_hash)
+      expect(ring.get('test-key')).to be_a(String)
+    end
+
+    it 'produces consistent results with custom hash' do
+      custom_hash = ->(key) { Digest::SHA256.hexdigest(key) }
+      ring = described_class.new(%w[node-a node-b node-c], hash: custom_hash)
+
+      first = ring.get('my-key')
+      10.times do
+        expect(ring.get('my-key')).to eq(first)
+      end
+    end
+
+    it 'distributes keys with custom hash' do
+      custom_hash = ->(key) { Digest::SHA256.hexdigest(key) }
+      ring = described_class.new(%w[node-a node-b node-c], hash: custom_hash)
+
+      nodes_seen = (0...100).map { |i| ring.get("key-#{i}") }.uniq
+      expect(nodes_seen.size).to be > 1
+    end
+
+    it 'raises ArgumentError if hash does not respond to :call' do
+      expect { described_class.new([], hash: 'not_callable') }.to raise_error(ArgumentError, /must respond to :call/)
+    end
+
+    it 'may produce different assignments than default MD5' do
+      nodes = %w[node-a node-b node-c]
+      default_ring = described_class.new(nodes)
+      sha_ring = described_class.new(nodes, hash: ->(key) { Digest::SHA256.hexdigest(key) })
+
+      keys = (0...100).map { |i| "key-#{i}" }
+      default_results = keys.map { |k| default_ring.get(k) }
+      sha_results = keys.map { |k| sha_ring.get(k) }
+
+      # They should not be identical (extremely unlikely with different hash functions)
+      expect(sha_results).not_to eq(default_results)
+    end
+
+    it 'uses default MD5 when no hash is provided' do
+      ring_a = described_class.new(%w[node-a node-b])
+      ring_b = described_class.new(%w[node-a node-b])
+
+      expect(ring_a.get('test')).to eq(ring_b.get('test'))
+    end
+  end
+
+  describe '#migration_plan' do
+    it 'returns moved keys and summary when a node is added' do
+      old_ring = described_class.new(%w[node-a node-b node-c])
+      new_ring = described_class.new(%w[node-a node-b node-c node-d])
+
+      plan = old_ring.migration_plan(new_ring)
+
+      expect(plan).to have_key(:moved)
+      expect(plan).to have_key(:summary)
+      expect(plan[:moved]).to be_an(Array)
+      expect(plan[:moved].first).to include(:key_sample, :from, :to)
+    end
+
+    it 'reports no moves when rings are identical' do
+      ring_a = described_class.new(%w[node-a node-b])
+      ring_b = described_class.new(%w[node-a node-b])
+
+      plan = ring_a.migration_plan(ring_b)
+
+      expect(plan[:moved]).to be_empty
+      expect(plan[:summary]).to be_empty
+    end
+
+    it 'tracks gained and lost counts per node' do
+      old_ring = described_class.new(%w[node-a node-b node-c])
+      new_ring = described_class.new(%w[node-a node-b node-c node-d])
+
+      plan = old_ring.migration_plan(new_ring)
+
+      expect(plan[:summary]['node-d'][:gained]).to be > 0
+
+      total_lost = plan[:summary].values.sum { |s| s[:lost] }
+      total_gained = plan[:summary].values.sum { |s| s[:gained] }
+      expect(total_lost).to eq(total_gained)
+    end
+
+    it 'shows all keys moving when ring topology completely changes' do
+      old_ring = described_class.new(%w[node-a node-b])
+      new_ring = described_class.new(%w[node-x node-y])
+
+      plan = old_ring.migration_plan(new_ring)
+
+      expect(plan[:moved].size).to eq(10_000)
+    end
+
+    it 'handles empty source ring' do
+      old_ring = described_class.new
+      new_ring = described_class.new(%w[node-a])
+
+      plan = old_ring.migration_plan(new_ring)
+
+      expect(plan[:moved].size).to eq(10_000)
+      expect(plan[:moved].all? { |m| m[:from].nil? }).to be true
+    end
+
+    it 'handles empty target ring' do
+      old_ring = described_class.new(%w[node-a])
+      new_ring = described_class.new
+
+      plan = old_ring.migration_plan(new_ring)
+
+      expect(plan[:moved].size).to eq(10_000)
+      expect(plan[:moved].all? { |m| m[:to].nil? }).to be true
+    end
+  end
+
+  describe 'serialization' do
+    describe '#to_json' do
+      it 'serializes the ring to JSON' do
+        ring = described_class.new(%w[node-a node-b])
+        json = ring.to_json
+        parsed = JSON.parse(json)
+
+        expect(parsed['replicas']).to eq(150)
+        expect(parsed['nodes'].size).to eq(2)
+        expect(parsed['nodes'].map { |n| n['name'] }).to match_array(%w[node-a node-b])
+      end
+
+      it 'includes node weights' do
+        ring = described_class.new
+        ring.add('light', weight: 1)
+        ring.add('heavy', weight: 3)
+
+        parsed = JSON.parse(ring.to_json)
+        heavy_entry = parsed['nodes'].find { |n| n['name'] == 'heavy' }
+
+        expect(heavy_entry['weight']).to eq(3)
+      end
+
+      it 'serializes custom replica count' do
+        ring = described_class.new(%w[node-a], replicas: 50)
+        parsed = JSON.parse(ring.to_json)
+
+        expect(parsed['replicas']).to eq(50)
+      end
+    end
+
+    describe '.from_json' do
+      it 'reconstructs a ring from JSON' do
+        original = described_class.new(%w[node-a node-b node-c])
+        json = original.to_json
+        restored = described_class.from_json(json)
+
+        expect(restored.nodes).to match_array(original.nodes)
+        expect(restored.replicas).to eq(original.replicas)
+      end
+
+      it 'produces the same key assignments' do
+        original = described_class.new(%w[node-a node-b node-c])
+        restored = described_class.from_json(original.to_json)
+
+        100.times do |i|
+          expect(restored.get("key-#{i}")).to eq(original.get("key-#{i}"))
+        end
+      end
+
+      it 'preserves node weights' do
+        original = described_class.new
+        original.add('light', weight: 1)
+        original.add('heavy', weight: 3)
+
+        restored = described_class.from_json(original.to_json)
+        keys = (0...2000).map { |i| "key-#{i}" }
+
+        original_dist = original.distribution(keys)
+        restored_dist = restored.distribution(keys)
+
+        expect(restored_dist).to eq(original_dist)
+      end
+
+      it 'uses default hash function on restore' do
+        custom_ring = described_class.new(%w[node-a node-b], hash: ->(k) { Digest::SHA256.hexdigest(k) })
+        json = custom_ring.to_json
+
+        restored = described_class.from_json(json)
+        default_ring = described_class.new(%w[node-a node-b])
+
+        expect(restored.get('test')).to eq(default_ring.get('test'))
+      end
+
+      it 'handles an empty ring' do
+        original = described_class.new
+        restored = described_class.from_json(original.to_json)
+
+        expect(restored).to be_empty
+        expect(restored.get('key')).to be_nil
+      end
+    end
+  end
+
+  describe '#balance_score' do
+    it 'returns a float between 0.0 and 1.0' do
+      ring = described_class.new(%w[node-a node-b node-c])
+      score = ring.balance_score
+
+      expect(score).to be_a(Float)
+      expect(score).to be_between(0.0, 1.0)
+    end
+
+    it 'returns 1.0 for an empty ring' do
+      expect(ring.balance_score).to eq(1.0)
+    end
+
+    it 'returns a high score for evenly distributed nodes' do
+      ring = described_class.new(%w[node-a node-b node-c], replicas: 300)
+      score = ring.balance_score
+
+      expect(score).to be > 0.8
+    end
+
+    it 'returns a lower score for highly unbalanced weights' do
+      ring = described_class.new
+      ring.add('tiny', weight: 1)
+      ring.add('huge', weight: 100)
+
+      score = ring.balance_score
+
+      expect(score).to be < 0.5
+    end
+
+    it 'returns a high score for a single node' do
+      ring = described_class.new(%w[node-a])
+
+      expect(ring.balance_score).to eq(1.0)
+    end
+  end
+
+  describe '#nodes_for_keys' do
+    let(:ring) { described_class.new(%w[node-a node-b node-c]) }
+
+    it 'returns a hash mapping nodes to keys' do
+      keys = %w[key-1 key-2 key-3]
+      result = ring.nodes_for_keys(keys)
+
+      expect(result).to be_a(Hash)
+      expect(result.values.flatten).to match_array(keys)
+    end
+
+    it 'assigns each key to exactly one node' do
+      keys = (0...50).map { |i| "key-#{i}" }
+      result = ring.nodes_for_keys(keys)
+
+      all_assigned = result.values.flatten
+      expect(all_assigned.size).to eq(keys.size)
+      expect(all_assigned).to match_array(keys)
+    end
+
+    it 'is consistent with get' do
+      keys = (0...50).map { |i| "key-#{i}" }
+      result = ring.nodes_for_keys(keys)
+
+      result.each do |node, node_keys|
+        node_keys.each do |key|
+          expect(ring.get(key)).to eq(node)
+        end
+      end
+    end
+
+    it 'returns an empty hash for an empty ring' do
+      empty_ring = described_class.new
+      result = empty_ring.nodes_for_keys(%w[key-1 key-2])
+
+      expect(result).to be_empty
+    end
+
+    it 'returns an empty hash for empty keys' do
+      result = ring.nodes_for_keys([])
+
+      expect(result).to be_empty
+    end
+
+    it 'distributes keys across multiple nodes' do
+      keys = (0...100).map { |i| "key-#{i}" }
+      result = ring.nodes_for_keys(keys)
+
+      expect(result.keys.size).to be > 1
     end
   end
 end
