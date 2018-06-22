@@ -2,12 +2,7 @@
 
 [![Tests](https://github.com/philiprehberger/rb-hash-ring/actions/workflows/ci.yml/badge.svg)](https://github.com/philiprehberger/rb-hash-ring/actions/workflows/ci.yml)
 [![Gem Version](https://badge.fury.io/rb/philiprehberger-hash_ring.svg)](https://rubygems.org/gems/philiprehberger-hash_ring)
-[![GitHub release](https://img.shields.io/github/v/release/philiprehberger/rb-hash-ring)](https://github.com/philiprehberger/rb-hash-ring/releases)
 [![Last updated](https://img.shields.io/github/last-commit/philiprehberger/rb-hash-ring)](https://github.com/philiprehberger/rb-hash-ring/commits/main)
-[![License](https://img.shields.io/github/license/philiprehberger/rb-hash-ring)](LICENSE)
-[![Bug Reports](https://img.shields.io/github/issues/philiprehberger/rb-hash-ring/bug)](https://github.com/philiprehberger/rb-hash-ring/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Feature Requests](https://img.shields.io/github/issues/philiprehberger/rb-hash-ring/enhancement)](https://github.com/philiprehberger/rb-hash-ring/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
-[![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ec6cb9)](https://github.com/sponsors/philiprehberger)
 
 Consistent hashing for distributed key distribution
 
@@ -153,9 +148,21 @@ bundle exec rubocop    # Check code style
 
 ## Support
 
-- [Bug reports](https://github.com/philiprehberger/rb-hash-ring/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
-- [Feature requests](https://github.com/philiprehberger/rb-hash-ring/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
-- [GitHub Sponsors](https://github.com/sponsors/philiprehberger)
+If you find this project useful:
+
+⭐ [Star the repo](https://github.com/philiprehberger/rb-hash-ring)
+
+🐛 [Report issues](https://github.com/philiprehberger/rb-hash-ring/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
+
+💡 [Suggest features](https://github.com/philiprehberger/rb-hash-ring/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+
+❤️ [Sponsor development](https://github.com/sponsors/philiprehberger)
+
+🌐 [All Open Source Projects](https://philiprehberger.com/open-source-packages)
+
+💻 [GitHub Profile](https://github.com/philiprehberger)
+
+🔗 [LinkedIn Profile](https://www.linkedin.com/in/philiprehberger)
 
 ## License
 
