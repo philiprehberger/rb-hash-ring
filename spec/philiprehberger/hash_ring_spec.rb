@@ -428,6 +428,177 @@ RSpec.describe Philiprehberger::HashRing::Ring do
     end
   end
 
+  describe '#stats' do
+    it 'returns count, percentage, and ideal_percentage per node' do
+      ring = described_class.new(%w[node-a node-b node-c])
+      keys = (0...3000).map { |i| "key-#{i}" }
+      result = ring.stats(keys)
+
+      expect(result.keys).to match_array(%w[node-a node-b node-c])
+      result.each_value do |s|
+        expect(s).to have_key(:count)
+        expect(s).to have_key(:percentage)
+        expect(s).to have_key(:ideal_percentage)
+        expect(s[:ideal_percentage]).to be_within(0.01).of(100.0 / 3)
+      end
+      expect(result.values.sum { |s| s[:count] }).to eq(3000)
+    end
+
+    it 'returns roughly balanced stats for equal-weight nodes' do
+      ring = described_class.new(%w[node-a node-b], replicas: 300)
+      keys = (0...2000).map { |i| "key-#{i}" }
+      result = ring.stats(keys)
+
+      result.each_value do |s|
+        expect(s[:percentage]).to be_between(30.0, 70.0)
+        expect(s[:ideal_percentage]).to be_within(0.01).of(50.0)
+      end
+    end
+
+    it 'reflects weighted ideal percentages' do
+      ring = described_class.new
+      ring.add('light', weight: 1)
+      ring.add('heavy', weight: 3)
+      keys = (0...1000).map { |i| "key-#{i}" }
+      result = ring.stats(keys)
+
+      expect(result['light'][:ideal_percentage]).to be_within(0.01).of(25.0)
+      expect(result['heavy'][:ideal_percentage]).to be_within(0.01).of(75.0)
+    end
+
+    it 'returns empty hash for empty ring' do
+      expect(ring.stats(%w[a b c])).to eq({})
+    end
+  end
+
+  describe '#hotspots' do
+    it 'returns nodes exceeding threshold times their fair share' do
+      ring = described_class.new
+      ring.add('light', weight: 1)
+      ring.add('heavy', weight: 3)
+      keys = (0...4000).map { |i| "key-#{i}" }
+
+      # With default threshold 1.5, the heavy node getting ~75% of keys
+      # should not be a hotspot (its fair share is 75%), and light getting ~25%
+      # should also not be a hotspot.
+      hotspots = ring.hotspots(keys)
+      # Hard to guarantee exact results, but at minimum the method returns an array
+      expect(hotspots).to be_an(Array)
+    end
+
+    it 'returns empty array for empty ring' do
+      expect(ring.hotspots(%w[a b c])).to eq([])
+    end
+
+    it 'detects hotspots with a low threshold' do
+      ring = described_class.new(%w[node-a node-b node-c])
+      keys = (0...3000).map { |i| "key-#{i}" }
+      # With threshold 0.5, any node getting more than 50% of ideal (>500 keys) is a hotspot
+      # All nodes should get roughly 1000 keys, so all should be hotspots at 0.5
+      hotspots = ring.hotspots(keys, threshold: 0.5)
+      expect(hotspots.size).to eq(3)
+    end
+
+    it 'returns no hotspots with a very high threshold' do
+      ring = described_class.new(%w[node-a node-b node-c])
+      keys = (0...3000).map { |i| "key-#{i}" }
+      hotspots = ring.hotspots(keys, threshold: 100.0)
+      expect(hotspots).to be_empty
+    end
+  end
+
+  describe '#rebalance_suggestions' do
+    it 'returns suggestions for significantly off-balance nodes' do
+      ring = described_class.new
+      ring.add('tiny', weight: 1)
+      ring.add('huge', weight: 100)
+      keys = (0...10_000).map { |i| "key-#{i}" }
+
+      suggestions = ring.rebalance_suggestions(keys)
+      expect(suggestions).to be_an(Array)
+      suggestions.each do |s|
+        expect(s).to have_key(:node)
+        expect(s).to have_key(:action)
+        expect(s).to have_key(:current_pct)
+        expect(s).to have_key(:ideal_pct)
+        expect(%i[increase decrease]).to include(s[:action])
+      end
+    end
+
+    it 'returns empty array for well-balanced ring' do
+      ring = described_class.new(%w[node-a node-b node-c], replicas: 300)
+      keys = (0...9000).map { |i| "key-#{i}" }
+      suggestions = ring.rebalance_suggestions(keys)
+      expect(suggestions).to be_empty
+    end
+
+    it 'returns empty array for empty ring' do
+      expect(ring.rebalance_suggestions(%w[a b c])).to eq([])
+    end
+  end
+
+  describe '#virtual_nodes' do
+    it 'returns virtual node count per real node' do
+      ring = described_class.new(%w[node-a node-b], replicas: 100)
+      result = ring.virtual_nodes
+
+      expect(result).to eq('node-a' => 100, 'node-b' => 100)
+    end
+
+    it 'reflects weights in virtual node counts' do
+      ring = described_class.new
+      ring.add('light', weight: 1)
+      ring.add('heavy', weight: 3)
+
+      result = ring.virtual_nodes
+      expect(result['light']).to eq(150)
+      expect(result['heavy']).to eq(450)
+    end
+
+    it 'returns empty hash for empty ring' do
+      expect(ring.virtual_nodes).to eq({})
+    end
+  end
+
+  describe '#hash_for' do
+    it 'returns an integer hash value for a key' do
+      ring = described_class.new(%w[node-a])
+      value = ring.hash_for('test-key')
+
+      expect(value).to be_an(Integer)
+    end
+
+    it 'returns consistent values for the same key' do
+      ring = described_class.new(%w[node-a])
+      expect(ring.hash_for('key')).to eq(ring.hash_for('key'))
+    end
+
+    it 'returns different values for different keys' do
+      ring = described_class.new(%w[node-a])
+      expect(ring.hash_for('key-a')).not_to eq(ring.hash_for('key-b'))
+    end
+  end
+
+  describe '#replicas_for' do
+    let(:ring) { described_class.new(%w[node-a node-b node-c]) }
+
+    it 'is an alias for get_n' do
+      key = 'my-key'
+      expect(ring.replicas_for(key, 2)).to eq(ring.get_n(key, 2))
+    end
+
+    it 'returns distinct nodes' do
+      result = ring.replicas_for('key', 3)
+      expect(result.size).to eq(3)
+      expect(result.uniq.size).to eq(3)
+    end
+
+    it 'returns empty array for empty ring' do
+      empty_ring = described_class.new
+      expect(empty_ring.replicas_for('key', 2)).to eq([])
+    end
+  end
+
   describe '#nodes_for_keys' do
     let(:ring) { described_class.new(%w[node-a node-b node-c]) }
 

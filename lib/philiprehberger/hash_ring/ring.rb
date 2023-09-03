@@ -136,6 +136,77 @@ module Philiprehberger
         result
       end
 
+      def stats(keys)
+        return {} if @nodes.empty?
+
+        dist = distribution(keys)
+        total = keys.size.to_f
+        total_weight = @nodes.values.sum.to_f
+
+        @nodes.each_with_object({}) do |(node, weight), result|
+          count = dist[node] || 0
+          ideal_pct = if @nodes.values.all? { |w| w == 1 }
+                        100.0 / @nodes.size
+                      else
+                        (weight / total_weight) * 100.0
+                      end
+          result[node] = {
+            count: count,
+            percentage: total.zero? ? 0.0 : (count / total) * 100.0,
+            ideal_percentage: ideal_pct
+          }
+        end
+      end
+
+      def hotspots(keys, threshold: 1.5)
+        return [] if @nodes.empty?
+
+        dist = distribution(keys)
+        total = keys.size.to_f
+        total_weight = @nodes.values.sum.to_f
+
+        @nodes.each_with_object([]) do |(node, weight), result|
+          count = dist[node] || 0
+          ideal_count = if @nodes.values.all? { |w| w == 1 }
+                          total / @nodes.size
+                        else
+                          (weight / total_weight) * total
+                        end
+          result << node if ideal_count.positive? && count > threshold * ideal_count
+        end
+      end
+
+      def rebalance_suggestions(keys)
+        return [] if @nodes.empty?
+
+        node_stats = stats(keys)
+        node_stats.each_with_object([]) do |(node, s), suggestions|
+          deviation = s[:percentage] - s[:ideal_percentage]
+          next unless deviation.abs > 10.0
+
+          suggestions << {
+            node: node,
+            action: deviation.positive? ? :decrease : :increase,
+            current_pct: s[:percentage],
+            ideal_pct: s[:ideal_percentage]
+          }
+        end
+      end
+
+      def virtual_nodes
+        @nodes.each_with_object({}) do |(node, weight), result|
+          result[node] = @replicas * weight
+        end
+      end
+
+      def hash_for(key)
+        hash_key(key.to_s)
+      end
+
+      def replicas_for(key, count)
+        get_n(key, count)
+      end
+
       private
 
       def collect_distinct_nodes(start_idx, count)

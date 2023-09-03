@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-03
+
+### Added
+
+- `Ring#stats(keys)` for per-node count, percentage, and ideal percentage statistics
+- `Ring#hotspots(keys, threshold: 1.5)` for detecting nodes handling disproportionate load
+- `Ring#rebalance_suggestions(keys)` for actionable rebalancing recommendations
+- `Ring#virtual_nodes` for inspecting virtual node counts per real node
+- `Ring#hash_for(key)` for exposing computed hash values (useful for debugging)
+- `Ring#replicas_for(key, count)` as a discoverable alias for `get_n`
+
 ## [0.2.1] - 2026-03-31
 
 ### Changed
