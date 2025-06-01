@@ -207,6 +207,20 @@ module Philiprehberger
         get_n(key, count)
       end
 
+      # Compare two rings for structural equality (same nodes, weights, replicas).
+      #
+      # @param other [Ring]
+      # @return [Boolean]
+      def ==(other)
+        other.is_a?(Ring) && @nodes == other.instance_variable_get(:@nodes) && @replicas == other.replicas
+      end
+
+      alias eql? ==
+
+      def hash
+        [@nodes, @replicas].hash
+      end
+
       private
 
       def collect_distinct_nodes(start_idx, count)
