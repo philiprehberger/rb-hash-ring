@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-28
+
+### Added
+
+- Custom hash function support via `hash:` parameter on `Ring.new`
+- `Ring#migration_plan(other_ring)` for planning node topology changes
+- `Ring#to_json` and `Ring.from_json` for ring serialization
+- `Ring#balance_score` for measuring key distribution quality
+- `Ring#nodes_for_keys(keys)` for batch key routing
+
 ## [0.1.1] - 2026-03-26
 
 ### Changed
