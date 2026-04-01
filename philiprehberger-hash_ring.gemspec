@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.email = ['me@philiprehberger.com']
   spec.summary = 'Consistent hashing for distributed key distribution'
   spec.description = 'Consistent hash ring with virtual nodes, weighted members, and replication support. ' \
-                       'Minimal key redistribution when nodes are added or removed.'
+                     'Minimal key redistribution when nodes are added or removed.'
   spec.homepage = 'https://philiprehberger.com/open-source-packages/ruby/philiprehberger-hash_ring'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.1.0'
