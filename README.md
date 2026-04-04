@@ -112,6 +112,58 @@ keys = (0...1000).map { |i| "key-#{i}" }
 ring.distribution(keys)   # => {"cache-1"=>312, "cache-2"=>355, "cache-3"=>333}
 ```
 
+### Per-Node Statistics
+
+Get detailed statistics including ideal vs actual distribution:
+
+```ruby
+keys = (0...3000).map { |i| "key-#{i}" }
+ring.stats(keys)
+# => {"cache-1" => {count: 1012, percentage: 33.7, ideal_percentage: 33.33}, ...}
+```
+
+### Hotspot Detection
+
+Find nodes handling disproportionate load:
+
+```ruby
+ring.hotspots(keys)                   # Nodes at >1.5x their fair share
+ring.hotspots(keys, threshold: 2.0)   # Nodes at >2x their fair share
+```
+
+### Rebalance Suggestions
+
+Get actionable recommendations for off-balance nodes:
+
+```ruby
+ring.rebalance_suggestions(keys)
+# => [{node: "cache-1", action: :increase, current_pct: 15.2, ideal_pct: 33.33}, ...]
+```
+
+### Virtual Node Inspection
+
+See how many virtual nodes each real node has:
+
+```ruby
+ring.virtual_nodes  # => {"cache-1" => 150, "cache-2" => 150, "cache-3" => 450}
+```
+
+### Hash Debugging
+
+Expose the hash value computed for a given key:
+
+```ruby
+ring.hash_for('user:42')  # => 2837291045
+```
+
+### Replica Lookup
+
+A more discoverable alias for `get_n`:
+
+```ruby
+ring.replicas_for('user:42', 2)  # => ["cache-2", "cache-3"]
+```
+
 ### Adding and Removing Nodes
 
 ```ruby
@@ -137,6 +189,12 @@ ring.remove('cache-1')    # Remaining nodes absorb the removed node's keys
 | `ring.to_json` | Serialize ring state to JSON |
 | `ring.balance_score` | Distribution quality score (0.0-1.0) |
 | `ring.nodes_for_keys(keys)` | Map each key to its responsible node |
+| `ring.stats(keys)` | Per-node count, percentage, and ideal percentage |
+| `ring.hotspots(keys, threshold: 1.5)` | Nodes exceeding threshold times their fair share |
+| `ring.rebalance_suggestions(keys)` | Actionable suggestions for off-balance nodes |
+| `ring.virtual_nodes` | Hash of {node => virtual_node_count} |
+| `ring.hash_for(key)` | Computed hash value for a key |
+| `ring.replicas_for(key, count)` | Alias for `get_n` (more discoverable name) |
 
 ## Development
 
