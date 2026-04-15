@@ -650,4 +650,32 @@ RSpec.describe Philiprehberger::HashRing::Ring do
       expect(result.keys.size).to be > 1
     end
   end
+
+  describe '#==' do
+    it 'returns true for rings with identical nodes and replicas' do
+      a = described_class.new(%w[n1 n2], replicas: 100)
+      b = described_class.new(%w[n1 n2], replicas: 100)
+      expect(a).to eq(b)
+    end
+
+    it 'returns false for different nodes' do
+      a = described_class.new(%w[n1 n2], replicas: 100)
+      b = described_class.new(%w[n1 n3], replicas: 100)
+      expect(a).not_to eq(b)
+    end
+
+    it 'returns false for different replica counts' do
+      a = described_class.new(%w[n1 n2], replicas: 100)
+      b = described_class.new(%w[n1 n2], replicas: 200)
+      expect(a).not_to eq(b)
+    end
+
+    it 'returns false for different weights' do
+      a = described_class.new([], replicas: 100)
+      a.add('n1', weight: 1)
+      b = described_class.new([], replicas: 100)
+      b.add('n1', weight: 2)
+      expect(a).not_to eq(b)
+    end
+  end
 end

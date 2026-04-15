@@ -164,6 +164,16 @@ A more discoverable alias for `get_n`:
 ring.replicas_for('user:42', 2)  # => ["cache-2", "cache-3"]
 ```
 
+### Structural Equality
+
+Two rings compare equal when they have the same nodes, weights, and replica count:
+
+```ruby
+a = Philiprehberger::HashRing::Ring.new(%w[n1 n2], replicas: 100)
+b = Philiprehberger::HashRing::Ring.new(%w[n1 n2], replicas: 100)
+a == b  # => true
+```
+
 ### Adding and Removing Nodes
 
 ```ruby
@@ -195,6 +205,7 @@ ring.remove('cache-1')    # Remaining nodes absorb the removed node's keys
 | `ring.virtual_nodes` | Hash of {node => virtual_node_count} |
 | `ring.hash_for(key)` | Computed hash value for a key |
 | `ring.replicas_for(key, count)` | Alias for `get_n` (more discoverable name) |
+| `ring == other` | Structural equality (same nodes, weights, replicas) |
 
 ## Development
 
