@@ -23,6 +23,11 @@ module Philiprehberger
         nodes.each { |node| add(node) }
       end
 
+      # Add a node to the ring with an optional weight multiplier.
+      #
+      # @param node [Object] the node identifier to add
+      # @param weight [Integer] multiplier applied to the replica count for this node (default: 1)
+      # @return [Ring] self for chaining
       def add(node, weight: 1)
         return if @nodes.key?(node)
 
@@ -31,6 +36,10 @@ module Philiprehberger
         self
       end
 
+      # Remove a node and all of its virtual replicas from the ring.
+      #
+      # @param node [Object] the node identifier to remove
+      # @return [Ring] self for chaining
       def remove(node)
         return unless @nodes.key?(node)
 
@@ -39,6 +48,10 @@ module Philiprehberger
         self
       end
 
+      # Find the node responsible for a given key using consistent hashing.
+      #
+      # @param key [Object] the key to route (coerced to String)
+      # @return [Object, nil] the node responsible for the key, or nil if the ring is empty
       def get(key)
         return nil if @ring.empty?
 
@@ -69,6 +82,10 @@ module Philiprehberger
         @nodes.empty?
       end
 
+      # Count how many of the supplied keys route to each node.
+      #
+      # @param keys [Enumerable] the keys to route through the ring
+      # @return [Hash{Object => Integer}] a mapping of node to the number of keys routed to it
       def distribution(keys)
         result = Hash.new(0)
         keys.each do |key|
@@ -76,6 +93,31 @@ module Philiprehberger
           result[node] += 1 if node
         end
         result
+      end
+
+      # Measure the balance of key distribution as a coefficient of variation.
+      #
+      # For each key, determines which node it routes to and counts the per-node
+      # distribution. Returns the standard deviation of those counts divided by
+      # their mean. Lower values indicate a more uniform distribution
+      # (0.0 = perfectly balanced).
+      #
+      # @param keys [Enumerable] the keys to route through the ring
+      # @return [Float] the coefficient of variation of per-node key counts, or
+      #   0.0 when `keys` is empty or the ring has 0 or 1 nodes
+      def load_factor(keys)
+        return 0.0 if @nodes.size < 2
+
+        key_list = keys.to_a
+        return 0.0 if key_list.empty?
+
+        dist = distribution(key_list)
+        counts = @nodes.keys.map { |node| dist[node] || 0 }
+        mean = counts.sum.to_f / counts.size
+        return 0.0 if mean.zero?
+
+        variance = counts.sum { |c| (c - mean)**2 } / counts.size.to_f
+        Math.sqrt(variance) / mean
       end
 
       def migration_plan(other_ring)
