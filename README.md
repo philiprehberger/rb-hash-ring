@@ -94,6 +94,17 @@ Measure how evenly keys are distributed across nodes:
 ring.balance_score  # => 0.95 (1.0 = perfectly balanced)
 ```
 
+### Balance Metric
+
+Measure distribution balance as the coefficient of variation (stddev / mean) of
+per-node key counts. Lower values indicate a more uniform distribution
+(0.0 = perfectly balanced):
+
+```ruby
+keys = (0...10_000).map { |i| "key-#{i}" }
+ring.load_factor(keys)  # => 0.03 (low values = well-balanced)
+```
+
 ### Batch Key Routing
 
 Find which node handles each key in a batch:
@@ -198,6 +209,7 @@ ring.remove('cache-1')    # Remaining nodes absorb the removed node's keys
 | `ring.migration_plan(other_ring)` | Compare topologies and show key movement |
 | `ring.to_json` | Serialize ring state to JSON |
 | `ring.balance_score` | Distribution quality score (0.0-1.0) |
+| `ring.load_factor(keys)` | Coefficient of variation for key distribution |
 | `ring.nodes_for_keys(keys)` | Map each key to its responsible node |
 | `ring.stats(keys)` | Per-node count, percentage, and ideal percentage |
 | `ring.hotspots(keys, threshold: 1.5)` | Nodes exceeding threshold times their fair share |

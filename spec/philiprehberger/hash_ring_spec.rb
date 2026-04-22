@@ -428,6 +428,59 @@ RSpec.describe Philiprehberger::HashRing::Ring do
     end
   end
 
+  describe '#load_factor' do
+    it 'returns 0.0 for empty keys' do
+      ring = described_class.new(%w[node-a node-b node-c])
+      expect(ring.load_factor([])).to eq(0.0)
+    end
+
+    it 'returns 0.0 for an empty ring' do
+      empty_ring = described_class.new
+      keys = (0...100).map { |i| "key-#{i}" }
+      expect(empty_ring.load_factor(keys)).to eq(0.0)
+    end
+
+    it 'returns 0.0 for a single-node ring regardless of keys' do
+      ring = described_class.new(%w[only-node])
+      keys = (0...100).map { |i| "key-#{i}" }
+      expect(ring.load_factor(keys)).to eq(0.0)
+    end
+
+    it 'returns a small value for a uniformly distributed ring' do
+      ring = described_class.new(%w[node-a node-b node-c], replicas: 300)
+      keys = (0...3000).map { |i| "key-#{i}" }
+
+      expect(ring.load_factor(keys)).to be < 0.2
+    end
+
+    it 'returns a larger value for a pathologically weighted ring' do
+      ring = described_class.new
+      ring.add('tiny', weight: 1)
+      ring.add('huge', weight: 100)
+      keys = (0...3000).map { |i| "key-#{i}" }
+
+      expect(ring.load_factor(keys)).to be > 0.5
+    end
+
+    it 'reflects imbalance introduced by weights' do
+      balanced_ring = described_class.new(%w[node-a node-b node-c], replicas: 300)
+      imbalanced_ring = described_class.new
+      imbalanced_ring.add('small', weight: 1)
+      imbalanced_ring.add('medium', weight: 5)
+      imbalanced_ring.add('large', weight: 20)
+
+      keys = (0...3000).map { |i| "key-#{i}" }
+
+      expect(imbalanced_ring.load_factor(keys)).to be > balanced_ring.load_factor(keys)
+    end
+
+    it 'returns a Float' do
+      ring = described_class.new(%w[node-a node-b])
+      keys = (0...100).map { |i| "key-#{i}" }
+      expect(ring.load_factor(keys)).to be_a(Float)
+    end
+  end
+
   describe '#stats' do
     it 'returns count, percentage, and ideal_percentage per node' do
       ring = described_class.new(%w[node-a node-b node-c])
