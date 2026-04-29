@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-28
+
+### Added
+- `Ring#node?(name)` — boolean membership check returning true when a node has been added to the ring.
+
+### Changed
+- Added `.github/FUNDING.yml` and converted README install/usage snippets to double quotes for consistency with the other Ruby packages.
+
 ## [0.5.0] - 2026-04-21
 
 ### Added

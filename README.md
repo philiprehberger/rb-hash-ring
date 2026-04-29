@@ -15,7 +15,7 @@ Consistent hashing for distributed key distribution
 Add to your Gemfile:
 
 ```ruby
-gem 'philiprehberger-hash_ring'
+gem "philiprehberger-hash_ring"
 ```
 
 Or install directly:
@@ -27,12 +27,12 @@ gem install philiprehberger-hash_ring
 ## Usage
 
 ```ruby
-require 'philiprehberger/hash_ring'
+require "philiprehberger/hash_ring"
 
-ring = Philiprehberger::HashRing::Ring.new(['cache-1', 'cache-2', 'cache-3'])
+ring = Philiprehberger::HashRing::Ring.new(["cache-1", "cache-2", "cache-3"])
 
-ring.get('user:42')       # => "cache-2"
-ring.get('session:abc')   # => "cache-1"
+ring.get("user:42")       # => "cache-2"
+ring.get("session:abc")   # => "cache-1"
 ```
 
 ### Weighted Nodes
@@ -188,8 +188,21 @@ a == b  # => true
 ### Adding and Removing Nodes
 
 ```ruby
-ring.add('cache-4')       # Only a fraction of keys are redistributed
-ring.remove('cache-1')    # Remaining nodes absorb the removed node's keys
+ring.add("cache-4")       # Only a fraction of keys are redistributed
+ring.remove("cache-1")    # Remaining nodes absorb the removed node's keys
+```
+
+### Membership Check
+
+Test whether a node has been added to the ring:
+
+```ruby
+ring = Philiprehberger::HashRing::Ring.new(["cache-1", "cache-2"])
+ring.node?("cache-1")  # => true
+ring.node?("cache-3")  # => false
+
+ring.remove("cache-1")
+ring.node?("cache-1")  # => false
 ```
 
 ## API
@@ -205,6 +218,7 @@ ring.remove('cache-1')    # Remaining nodes absorb the removed node's keys
 | `ring.nodes` | List all physical nodes |
 | `ring.size` | Number of physical nodes |
 | `ring.empty?` | Check if the ring is empty |
+| `ring.node?(name)` | Check whether a node has been added to the ring |
 | `ring.distribution(keys)` | Hash of {node => count} showing key distribution |
 | `ring.migration_plan(other_ring)` | Compare topologies and show key movement |
 | `ring.to_json` | Serialize ring state to JSON |

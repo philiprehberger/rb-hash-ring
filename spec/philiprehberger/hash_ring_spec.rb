@@ -178,6 +178,31 @@ RSpec.describe Philiprehberger::HashRing::Ring do
     end
   end
 
+  describe '#node?' do
+    it 'returns false for an unknown node' do
+      expect(ring.node?('missing')).to be false
+    end
+
+    it 'returns true after a node has been added' do
+      ring.add('cache-1')
+      expect(ring.node?('cache-1')).to be true
+    end
+
+    it 'returns false again after a node is removed' do
+      ring.add('cache-1')
+      ring.remove('cache-1')
+      expect(ring.node?('cache-1')).to be false
+    end
+
+    it 'distinguishes between added nodes' do
+      ring.add('cache-1')
+      ring.add('cache-2')
+      expect(ring.node?('cache-1')).to be true
+      expect(ring.node?('cache-2')).to be true
+      expect(ring.node?('cache-3')).to be false
+    end
+  end
+
   describe 'weighted nodes' do
     it 'gives higher-weight nodes more keys' do
       ring = described_class.new

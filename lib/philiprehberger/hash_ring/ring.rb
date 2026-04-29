@@ -82,6 +82,14 @@ module Philiprehberger
         @nodes.empty?
       end
 
+      # Whether the ring contains the given node.
+      #
+      # @param node [Object] the node identifier to check
+      # @return [Boolean] true when the node is present in the ring
+      def node?(node)
+        @nodes.key?(node)
+      end
+
       # Count how many of the supplied keys route to each node.
       #
       # @param keys [Enumerable] the keys to route through the ring
